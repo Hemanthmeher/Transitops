@@ -7,13 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ──────────────────────────────────────────────────────────────────
+// ─── Enums ───────────────────────────────────────────
 
 enum Role {
   ADMIN
   MANAGER
   DISPATCHER
   DRIVER
+  SAFETY_OFFICER
+  FINANCIAL_ANALYST
 }
 
 enum VehicleStatus {
@@ -21,150 +23,240 @@ enum VehicleStatus {
   ON_TRIP
   IN_SHOP
   RETIRED
+  DEPLOYED
 }
 
 enum DriverStatus {
   AVAILABLE
   ON_TRIP
-  EXPIRED
   SUSPENDED
+  OFF_DUTY
 }
 
 enum TripStatus {
-  PENDING
+  REQUESTED
+  ASSIGNED
   IN_PROGRESS
   COMPLETED
   CANCELLED
 }
 
 enum MaintenanceType {
-  ROUTINE
-  REPAIR
-  INSPECTION
+  SCHEDULED
+  UNSCHEDULED
   EMERGENCY
 }
 
 enum MaintenanceStatus {
   OPEN
-  IN_PROGRESS
+  DUE_SOON
   COMPLETED
   CANCELLED
 }
 
 enum ExpenseCategory {
+  MAINTENANCE
+  FUEL
   TOLL
   PARKING
-  FOOD
-  ACCOMMODATION
-  SUPPLIES
+  INSURANCE
+  REPAIRS
+  MISC
   OTHER
 }
 
-// ─── Models ─────────────────────────────────────────────────────────────────
+enum Permission {
+  VEHICLE_READ
+  VEHICLE_WRITE
+  VEHICLE_DELETE
+  DRIVER_READ
+  DRIVER_WRITE
+  DRIVER_DELETE
+  TRIP_READ
+  TRIP_WRITE
+  TRIP_DELETE
+  FUEL_READ
+  FUEL_WRITE
+  MAINTENANCE_READ
+  MAINTENANCE_WRITE
+  EXPENSE_READ
+  EXPENSE_WRITE
+  REPORT_READ
+  SETTINGS_READ
+  SETTINGS_WRITE
+  USER_READ
+  USER_WRITE
+}
+
+// ─── Models ──────────────────────────────────────────
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(DISPATCHER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password      String
+  name          String
+  role          Role     @default(DISPATCHER)
+  isActive      Boolean  @default(true)
+  rememberToken String?
+  resetToken    String?
+  resetTokenExp DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  assignedTrips Trip[]
+  auditLogs     AuditLog[]
+}
+
+model RolePermission {
+  id         Int        @id @default(autoincrement())
+  role       Role
+  permission Permission
+  createdAt  DateTime   @default(now())
+
+  @@unique([role, permission])
 }
 
 model Vehicle {
-  id           Int           @id @default(autoincrement())
-  plateNumber  String        @unique
-  make         String
-  model        String
-  year         Int
-  capacity     Float
-  status       VehicleStatus @default(AVAILABLE)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id          Int              @id @default(autoincrement())
+  plateNumber String           @unique
+  make        String
+  model       String
+  year        Int
+  capacity    Float
+  status      VehicleStatus    @default(AVAILABLE)
+  type        String?
+  fuelType    String?
+  mileage     Int?
+  region      String?
+  deletedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  trips         Trip[]
+  trips           Trip[]
   maintenanceLogs MaintenanceLog[]
-  fuelLogs      FuelLog[]
+  fuelLogs        FuelLog[]
+  expenses        Expense[]
 }
 
 model Driver {
-  id            Int          @id @default(autoincrement())
-  licenseNumber String       @unique
-  firstName     String
-  lastName      String
-  email         String       @unique
-  phone         String
-  status        DriverStatus @default(AVAILABLE)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id             Int          @id @default(autoincrement())
+  licenseNumber  String       @unique
+  firstName      String
+  lastName       String
+  email          String       @unique
+  phone          String?
+  status         DriverStatus @default(AVAILABLE)
+  licenseExpiry  DateTime?
+  experience     Int?
+  safetyScore    Float?       @default(100)
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  trips Trip[]
+  trips          Trip[]
 }
 
 model Trip {
-  id           Int         @id @default(autoincrement())
-  vehicleId    Int
-  driverId     Int
-  origin       String
-  destination  String
-  cargoWeight  Float
-  status       TripStatus  @default(PENDING)
-  startTime    DateTime?
-  endTime      DateTime?
-  notes        String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id            Int        @id @default(autoincrement())
+  vehicleId     Int
+  driverId      Int
+  origin        String
+  destination   String
+  cargoWeight   Float?
+  cargoType     String?
+  revenue       Float?
+  status        TripStatus @default(REQUESTED)
+  description   String?
+  scheduledDate DateTime   @default(now())
+  startTime     DateTime?
+  completedDate DateTime?
+  notes         String?
+  assignedById  Int?
+  deletedAt     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
-  vehicle Vehicle  @relation(fields: [vehicleId], references: [id])
-  driver  Driver   @relation(fields: [driverId], references: [id])
-  fuelLogs     FuelLog[]
-  expenses     Expense[]
+  vehicle       Vehicle    @relation(fields: [vehicleId], references: [id])
+  driver        Driver     @relation(fields: [driverId], references: [id])
+  assignedBy    User?      @relation(fields: [assignedById], references: [id])
+  fuelLogs      FuelLog[]
+  expenses      Expense[]
 }
 
 model MaintenanceLog {
   id            Int               @id @default(autoincrement())
   vehicleId     Int
+  type          MaintenanceType
   description   String
-  type          MaintenanceType   @default(REPAIR)
-  scheduledDate DateTime?
-  completedDate DateTime?
-  cost          Float             @default(0)
   status        MaintenanceStatus @default(OPEN)
+  scheduledDate DateTime          @default(now())
+  completedDate DateTime?
+  cost          Float?
   notes         String?
+  reminderSent  Boolean           @default(false)
+  deletedAt     DateTime?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+  vehicle       Vehicle           @relation(fields: [vehicleId], references: [id])
 }
 
 model FuelLog {
   id           Int      @id @default(autoincrement())
   vehicleId    Int
   tripId       Int?
+  date         DateTime @default(now())
   liters       Float
   costPerLiter Float
   totalCost    Float
-  date         DateTime @default(now())
+  station      String?
+  fuelType     String?
+  odometer     Int?
   notes        String?
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  vehicle Vehicle  @relation(fields: [vehicleId], references: [id])
-  trip    Trip?    @relation(fields: [tripId], references: [id])
+  vehicle      Vehicle  @relation(fields: [vehicleId], references: [id])
+  trip         Trip?    @relation(fields: [tripId], references: [id])
 }
 
 model Expense {
-  id          Int              @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
+  vehicleId   Int?
   tripId      Int?
   category    ExpenseCategory @default(OTHER)
-  amount      Float
   description String
+  amount      Float
   date        DateTime        @default(now())
   receiptUrl  String?
+  notes       String?
+  deletedAt   DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  trip Trip? @relation(fields: [tripId], references: [id])
+  vehicle     Vehicle?        @relation(fields: [vehicleId], references: [id])
+  trip        Trip?           @relation(fields: [tripId], references: [id])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  action     String
+  entity     String
+  entityId   Int?
+  oldValue   String?
+  newValue   String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id])
+}
+
+model AnalyticsCache {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  data      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
