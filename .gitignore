@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Temp
+tmp/
+temp/

@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  MANAGER
+  DISPATCHER
+  DRIVER
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  ON_TRIP
+  IN_SHOP
+  RETIRED
+}
+
+enum DriverStatus {
+  AVAILABLE
+  ON_TRIP
+  EXPIRED
+  SUSPENDED
+}
+
+enum TripStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenanceType {
+  ROUTINE
+  REPAIR
+  INSPECTION
+  EMERGENCY
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ExpenseCategory {
+  TOLL
+  PARKING
+  FOOD
+  ACCOMMODATION
+  SUPPLIES
+  OTHER
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(DISPATCHER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Vehicle {
+  id           Int           @id @default(autoincrement())
+  plateNumber  String        @unique
+  make         String
+  model        String
+  year         Int
+  capacity     Float
+  status       VehicleStatus @default(AVAILABLE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  trips         Trip[]
+  maintenanceLogs MaintenanceLog[]
+  fuelLogs      FuelLog[]
+}
+
+model Driver {
+  id            Int          @id @default(autoincrement())
+  licenseNumber String       @unique
+  firstName     String
+  lastName      String
+  email         String       @unique
+  phone         String
+  status        DriverStatus @default(AVAILABLE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  trips Trip[]
+}
+
+model Trip {
+  id           Int         @id @default(autoincrement())
+  vehicleId    Int
+  driverId     Int
+  origin       String
+  destination  String
+  cargoWeight  Float
+  status       TripStatus  @default(PENDING)
+  startTime    DateTime?
+  endTime      DateTime?
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  vehicle Vehicle  @relation(fields: [vehicleId], references: [id])
+  driver  Driver   @relation(fields: [driverId], references: [id])
+  fuelLogs     FuelLog[]
+  expenses     Expense[]
+}
+
+model MaintenanceLog {
+  id            Int               @id @default(autoincrement())
+  vehicleId     Int
+  description   String
+  type          MaintenanceType   @default(REPAIR)
+  scheduledDate DateTime?
+  completedDate DateTime?
+  cost          Float             @default(0)
+  status        MaintenanceStatus @default(OPEN)
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+}
+
+model FuelLog {
+  id           Int      @id @default(autoincrement())
+  vehicleId    Int
+  tripId       Int?
+  liters       Float
+  costPerLiter Float
+  totalCost    Float
+  date         DateTime @default(now())
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  vehicle Vehicle  @relation(fields: [vehicleId], references: [id])
+  trip    Trip?    @relation(fields: [tripId], references: [id])
+}
+
+model Expense {
+  id          Int              @id @default(autoincrement())
+  tripId      Int?
+  category    ExpenseCategory @default(OTHER)
+  amount      Float
+  description String
+  date        DateTime        @default(now())
+  receiptUrl  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  trip Trip? @relation(fields: [tripId], references: [id])
+}
